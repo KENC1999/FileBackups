@@ -1,6 +1,13 @@
 import javax.swing.*;
+import javax.swing.plaf.basic.BasicTabbedPaneUI;
+import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.dnd.DnDConstants;
+import java.awt.dnd.DropTarget;
+import java.awt.dnd.DropTargetAdapter;
+import java.awt.dnd.DropTargetDropEvent;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
@@ -9,6 +16,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
+import java.util.List;
 
 public class UI4 extends JPanel {
 
@@ -36,7 +44,7 @@ public class UI4 extends JPanel {
     JButton select_file_button=new JButton("添加文件");
     JButton set_local_button=new JButton("本地备份设置");
     JButton set_remote_button=new JButton("网盘备份设置");
-    String[] backup_choice={"本地备份","网盘备份"};
+    String[] backup_choice={"本地备份","网盘备份","本地+网盘"};
     JComboBox<String> select_loc_rmo=new JComboBox<String>(backup_choice);
     JButton start_backup_button=new JButton("开始备份");
     JButton cancel_backup_button=new JButton("清空列表");
@@ -50,6 +58,18 @@ public class UI4 extends JPanel {
         @Override
         public boolean isCellEditable(int row,int column){
             return false;
+        }
+        public String getToolTipText(MouseEvent e) {
+            int row=file_table.rowAtPoint(e.getPoint());
+            int col=file_table.columnAtPoint(e.getPoint());
+            String tip=null;
+            if(row>-1&&col>-1){
+                Object value=file_table.getValueAt(row,col);
+                if(value!=null&&!"".equals(value)){
+                    tip=value.toString();
+                }
+            }
+            return tip;
         }
     };
     JScrollPane file_scrollPane = new JScrollPane(file_table);
@@ -81,6 +101,8 @@ public class UI4 extends JPanel {
         sub_backup_Panel_1.add(select_file_button);select_file_button.setFont(font1);select_file_button.setPreferredSize(dim);
         sub_backup_Panel_1.add(set_local_button);set_local_button.setFont(font1);set_local_button.setPreferredSize(dim);
         sub_backup_Panel_1.add(set_remote_button); set_remote_button.setFont(font1);set_remote_button.setPreferredSize(dim);
+        select_file_button.setToolTipText("可直接拖动文件到右侧列表");
+
 
         JPanel select_start_panel=new JPanel();
         //select_start_panel.setBorder(new EmptyBorder(0,0,0,0));
@@ -164,7 +186,7 @@ public class UI4 extends JPanel {
                         }
                         String[] options = {"查看文件", "退出"};
                         int result = JOptionPane.showOptionDialog(null, "备份成功！",
-                                    "提示",
+                                "提示",
                                 JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE, null, options, options[0]);
                         model.setRowCount(0);
                         if(result==0){
@@ -234,7 +256,7 @@ public class UI4 extends JPanel {
                             public void actionPerformed(ActionEvent e) {
                                 System.out.println("打开所在路径");
                                 //file_table.setRowSelectionInterval(row, row); //高亮选择指定的行
-                               // System.out.println(" "+file_table.getValueAt(row,0));
+                                // System.out.println(" "+file_table.getValueAt(row,0));
                                 //DefaultTableModel tableModel = (DefaultTableModel) file_table.getModel();
                                 try {
                                     String path=model.getValueAt(row,1).toString();
@@ -278,7 +300,7 @@ public class UI4 extends JPanel {
         frame.add(tabbedPane,BorderLayout.CENTER);
 
         init_backups();
-
+        drag();
 
 
 
@@ -303,6 +325,33 @@ public class UI4 extends JPanel {
         label.setHorizontalAlignment(SwingConstants.CENTER);
         panel.add(label);
         return panel;
+    }
+
+    public void drag(){
+        new DropTarget(file_scrollPane, DnDConstants.ACTION_COPY_OR_MOVE, new DropTargetAdapter() {
+            @Override
+            public void drop(DropTargetDropEvent dtde) {
+                try {
+                    if(dtde.isDataFlavorSupported(DataFlavor.javaFileListFlavor)){//格式支持
+                        dtde.acceptDrop(DnDConstants.ACTION_COPY_OR_MOVE);//接收数据
+                        List<File> list=(List<File>)(dtde.getTransferable().getTransferData(DataFlavor.javaFileListFlavor));
+                        String path="";
+                        String name="";
+                        for(File file:list){
+                            path+=file.getAbsolutePath();
+                            name+=file.getName();
+                            model.addRow(new Object[]{name, path});
+                        }
+                        dtde.dropComplete(true);
+                    }
+                    else{
+                        dtde.rejectDrop();
+                    }
+                }catch (Exception e){
+                    e.printStackTrace();
+                }
+            }
+        });
     }
 
 }
