@@ -2,11 +2,15 @@ import C.TarArchive;
 import org.apache.commons.io.FileDeleteStrategy;
 
 import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 
 public class RecoverPanel extends JPanel {
     Font font1 = new Font("幼圆", Font.BOLD, 26);
@@ -17,11 +21,22 @@ public class RecoverPanel extends JPanel {
     static final int frameHeight = 900;
 
     JButton selectPathButton = new JButton("还原路径设置");
-    String recPath="C:";
+    String recPath="I:\\软件开发\\下载";
     String lastPath=null;
     String tmpPath=null;
     JButton recLocButton = new JButton("本地还原");
     JButton recRmoButton = new JButton("网盘还原");
+    JDialog ftpFrame = new JDialog();//构造一个新的JFrame，作为新窗口。
+    String[] ftpCols = {"文件名","文件大小"};
+    Object[][] ftpVals = {};
+    DefaultTableModel ftpModel = new DefaultTableModel(ftpVals, ftpCols);
+    JTable ftp_table=new JTable(ftpModel){
+        @Override
+        public boolean isCellEditable(int row,int column){
+            return false;
+        }
+    };
+    JScrollPane ftp_scrollPane = new JScrollPane(ftp_table);
 
     void recoverFile(File file) throws IOException {
         String fileName=file.getName();
@@ -57,6 +72,7 @@ public class RecoverPanel extends JPanel {
     }
 
     RecoverPanel() {
+        this.initFtpDesk();
         this.setLayout(null);
         JPanel subRecPanel = new JPanel();
         this.add(subRecPanel);
@@ -138,5 +154,76 @@ public class RecoverPanel extends JPanel {
 
             }
         });
+
+        recRmoButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                ftpModel.setRowCount(0);
+                ArrayList<ArrayList<String>> filelist=null;
+                try { filelist=FtpCli.showList(UI4.ftpClient); }
+                catch (Exception e3) {
+                    JOptionPane.showMessageDialog(null,"请先登录网盘！","提示",JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+                for(int i=0;i<filelist.size();i++)
+                    ftpModel.addRow(new Object[]{filelist.get(i).get(0), filelist.get(i).get(1)});
+                //ftpModel.addRow(new Object[]{file.getName(), file.getPath()});
+
+
+
+
+                ftpFrame.setTitle("网盘文件");
+                ftpFrame.getContentPane().add(ftp_scrollPane);
+
+                ftpFrame.setModalityType(Dialog.ModalityType.APPLICATION_MODAL);  // 设置模式类型。
+                ftpFrame.setSize(frameWidth/2,frameHeight/2);
+                ftpFrame.setLocationRelativeTo(null);
+                ftpFrame.setVisible(true);
+            }
+        });
+
+
+    }
+
+    public void initFtpDesk(){
+        ftp_table.getTableHeader().setFont(font4);
+        ftp_table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        ftp_table.setRowHeight(24);
+        ftp_table.setFont(font4);
+        ftp_table.getColumnModel().getColumn(0).setPreferredWidth(frameWidth/3);
+        ftp_table.getColumnModel().getColumn(1).setPreferredWidth(frameWidth/6);
+        ftp_table.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent me) {
+                if (SwingUtilities.isRightMouseButton(me)) {
+                    final int row = ftp_table.rowAtPoint(me.getPoint());
+                    System.out.println("row:"+row);
+                    if(row!=-1){
+                        final int col = ftp_table.columnAtPoint(me.getPoint());
+                        ftp_table.setRowSelectionInterval(row, row);
+                        final JPopupMenu table_menu = new JPopupMenu();
+                        JMenuItem select = new JMenuItem("选择");
+                        select.setFont(font4);
+                        table_menu.add(select);
+                        //table_menu.addSeparator();
+                        select.addActionListener(new ActionListener() {
+                            public void actionPerformed(ActionEvent e) {
+                                System.out.println("选择");
+                                String fileSelected=ftpModel.getValueAt(row,0).toString();
+                                System.out.println(fileSelected);
+                                ftpFrame.setVisible(false);
+                                try {
+                                    FtpCli.downFile(UI4.ftpClient,fileSelected,recPath);
+                                    File file=new File(recPath+"\\"+fileSelected);
+                                    recoverFile(file);
+                                } catch (IOException ex) {
+                                    ex.printStackTrace();
+                                }
+                            }
+                        });
+                        table_menu.show(me.getComponent(), me.getX(), me.getY());
+                    }
+                }
+            }});
     }
 }

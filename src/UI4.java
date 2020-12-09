@@ -10,9 +10,7 @@ import java.awt.dnd.DropTarget;
 import java.awt.dnd.DropTargetAdapter;
 import java.awt.dnd.DropTargetDropEvent;
 import java.awt.event.*;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.net.ConnectException;
 import java.net.SocketException;
 import java.text.SimpleDateFormat;
@@ -22,8 +20,6 @@ import java.util.List;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.net.ftp.FTPClient;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 
 import C.*;
@@ -57,15 +53,16 @@ public class UI4 extends JPanel {
     JButton set_remote_button=new JButton("网盘备份设置");
     boolean login=false;
     String usrNow=null;
+    String usrPwd=null;
     String fileSelected=null;
-    FTPClient ftpClient = new FTPClient();
+    static FTPClient ftpClient = null;
     FileInputStream fis = null;
 
-    String[] backup_choice={"本地备份","网盘备份","本地+网盘"};
+    String[] backup_choice={"本地备份","网盘备份"};
     JComboBox<String> select_loc_rmo=new JComboBox<String>(backup_choice);
     JButton start_backup_button=new JButton("开始备份");
     JButton cancel_backup_button=new JButton("清空列表");
-    String local_text="C:\\";
+    String local_text="I:\\软件开发";
 
     String[] file_cols = {"名称","路径"};
     Object[][] tableValues = {};
@@ -109,6 +106,10 @@ public class UI4 extends JPanel {
 //    JRadioButtonMenuItem table_delete=new JRadioButtonMenuItem("删除");
     //JRadioButtonMenuItem table_inv_select=new JRadioButtonMenuItem("反选");
 
+    public FTPClient getFtpClient(){
+        return ftpClient;
+    }
+
     public void initFtpDesk(){
         ftp_table.getTableHeader().setFont(font4);
         ftp_table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
@@ -131,18 +132,18 @@ public class UI4 extends JPanel {
                         JMenuItem delete = new JMenuItem("删除");
                         select.setFont(font4);
                         delete.setFont(font4);
-                        table_menu.add(select);
-                        table_menu.addSeparator();
+                        //table_menu.add(select);
+                        //table_menu.addSeparator();
                         table_menu.add(delete);
-                        select.addActionListener(new ActionListener() {
-                            public void actionPerformed(ActionEvent e) {
-                                System.out.println("选择");
-                                fileSelected=ftpModel.getValueAt(row,0).toString();
-                                System.out.println(fileSelected);
-                                //model.addRow(new Object[]{"35", "Boss"});
-                                //file_table.setModel(tableModel);
-                            }
-                        });
+//                        select.addActionListener(new ActionListener() {
+//                            public void actionPerformed(ActionEvent e) {
+//                                System.out.println("选择");
+//                                fileSelected=ftpModel.getValueAt(row,0).toString();
+//                                System.out.println(fileSelected);
+//                                //model.addRow(new Object[]{"35", "Boss"});
+//                                //file_table.setModel(tableModel);
+//                            }
+//                        });
                         delete.addActionListener(new ActionListener() {
                             public void actionPerformed(ActionEvent e) {
                                 System.out.println("删除");
@@ -214,7 +215,7 @@ public class UI4 extends JPanel {
         set_local_button.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                Object[] options ={ "选择路径", "退出" };
+                Object[] options ={ "选择路径", "返回" };
 
                 //JOptionPane.showInputDialog(null,"请输入你的爱好：\n","title",JOptionPane.PLAIN_MESSAGE,new ImageIcon(),null,"当前路径");
                 while(true){
@@ -245,7 +246,7 @@ public class UI4 extends JPanel {
         set_remote_button.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                Object[] options ={ "确定", "退出" };
+                Object[] options ={ "确定", "返回" };
                 JPanel panel = new JPanel();
                 panel.setLayout(new GridLayout(3,2,4,4));
                 JLabel label1=new JLabel("服务器IP：");
@@ -274,6 +275,7 @@ public class UI4 extends JPanel {
                         try {
                             frame.setFocusable(false);
                             //JOptionPane.showMessageDialog(null, "请等待.", "正在连接",JOptionPane.PLAIN_MESSAGE);
+                            ftpClient=new FTPClient();//重新创建一个，不然上传文件会出错，不知道为什么
                             ftpClient.connect(textField1.getText());
                         } catch (IOException ioException) {
                             JOptionPane.showMessageDialog(panel,"无法连接服务器！请检查IP是否正确","提示",JOptionPane.WARNING_MESSAGE);
@@ -285,17 +287,19 @@ public class UI4 extends JPanel {
                             boolean usrlogin=ftpClient.login(textField2.getText(), textField3.getText());
                             if(!usrlogin){
                                 JOptionPane.showMessageDialog(panel,"用户名或密码错误！","提示",JOptionPane.WARNING_MESSAGE);
-                                try { ftpClient.disconnect(); } catch (IOException ex) { ex.printStackTrace(); }
+                                try { ftpClient.disconnect();} catch (IOException ex) { ex.printStackTrace(); }
                             }
                             else {
                                 usrNow=textField2.getText();
+                                usrPwd=textField3.getPassword().toString();
                                 login=true;
                             }
                         } catch (IOException ioException) {}
                     }
                 }
                 if(login){
-                    Object[] usrOptions ={ "查看网盘资源", "注销","退出" };
+                    System.out.println(ftpClient.getPassiveLocalIPAddress());
+                    Object[] usrOptions ={ "查看网盘资源", "注销","返回" };
                     JPanel usrPanel = new JPanel();
                     JLabel usrLabel=new JLabel("当前用户："+usrNow);
                     usrLabel.setFont(font3);
@@ -335,7 +339,10 @@ public class UI4 extends JPanel {
 
                         }
                         if(result==1){
-                            try { ftpClient.disconnect(); } catch (IOException ex) { ex.printStackTrace(); }
+                            try {
+                                ftpClient.logout();
+                                ftpClient.disconnect();
+                            } catch (IOException ex) { ex.printStackTrace(); }
                             login=false;
                             return;
                         }
@@ -354,6 +361,14 @@ public class UI4 extends JPanel {
         start_backup_button.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
+                if(select_loc_rmo.getSelectedIndex()==1&&!ftpClient.isConnected()){
+                    JOptionPane.showMessageDialog(backup_Panel,"请先登录网盘！","提示",JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+                if(file_table.getRowCount()==0){
+                    JOptionPane.showMessageDialog(backup_Panel,"请先添加文件！","提示",JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
                 Object[] startOptions ={ "开始", "取消" };
                 JPanel panel = new JPanel();
                 panel.setLayout(new GridLayout(2,2,4,4));
@@ -370,6 +385,11 @@ public class UI4 extends JPanel {
                         startOptions,null);
                 if(startResult==1)
                     return;
+
+                System.out.println(ftpClient.isConnected());
+                System.out.println(ftpClient.getPassiveLocalIPAddress());
+
+                String ftpPathName=null;
 
                 SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd_HH_mm_ss");
                 String tail=df.format(System.currentTimeMillis())+".tar";
@@ -393,6 +413,7 @@ public class UI4 extends JPanel {
                     }
                     TarArchive.tar(pathList,fileName);
                     String compressFile=fileName+".huf";
+                    ftpPathName=compressFile;
                     FileProcess.comPress(fileName,compressFile);
                     {
                         File file2=new File(fileName);
@@ -400,8 +421,9 @@ public class UI4 extends JPanel {
                             file2.delete();
                     }
 
-                    String[] options = {"查看文件", "退出"};
-                    int result = JOptionPane.showOptionDialog(null, "备份成功！",
+
+                    String[] options = {"查看文件", "返回"};
+                    int result = JOptionPane.showOptionDialog(null, "本地备份成功！",
                             "提示",
                             JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE, null, options, options[0]);
                     model.setRowCount(0);
@@ -412,11 +434,19 @@ public class UI4 extends JPanel {
                         }catch (Exception ex){
                         }
                     }
-
                 }catch (Exception ex){
                     ex.printStackTrace();
-                    JOptionPane.showMessageDialog(backup_Panel,"路径不存在，请检查路径！","提示",JOptionPane.WARNING_MESSAGE);
                 }
+
+                if(select_loc_rmo.getSelectedIndex()==1){
+                    try {
+                        FtpCli.uploadFile(ftpClient,ftpPathName);
+                        //FtpCli.uploadFile(ftpClient,ftpPathName);
+                        FtpCli.showtest(ftpClient);
+                    }
+                    catch (IOException ex) { ex.printStackTrace(); }
+                }
+
 
             }
         });
@@ -512,6 +542,7 @@ public class UI4 extends JPanel {
         frame.add(tabbedPane,BorderLayout.CENTER);
 
         initFtpDesk();
+        //FtpCli.initFtpDesk(1,ftpClient,ftp_table,ftpModel);
 
         init_backups();
         drag();
