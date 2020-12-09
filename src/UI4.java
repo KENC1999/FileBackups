@@ -90,7 +90,7 @@ public class UI4 extends JPanel {
         }
     };
     String[] ftpCols = {"文件名","文件大小"};
-    Object[][] ftpVals = {{"文件名","备份时间"},{"文件名","备份时间"},{"文件名","备份时间"}};
+    Object[][] ftpVals = {};
     DefaultTableModel ftpModel = new DefaultTableModel(ftpVals, ftpCols);
     JTable ftp_table=new JTable(ftpModel){
         @Override
@@ -228,7 +228,7 @@ public class UI4 extends JPanel {
                     int result=JOptionPane.showOptionDialog(null, panel, "本地备份设置",
                             JOptionPane.YES_NO_OPTION, JOptionPane.PLAIN_MESSAGE, null,
                             options,null);
-                    if(result==1)
+                    if(result!=0)
                         break;
                     else{
                         JFileChooser filechooser = new JFileChooser(); //文件选择
@@ -354,46 +354,70 @@ public class UI4 extends JPanel {
         start_backup_button.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                JLabel  info_act  =  new  JLabel("确定开始备份吗？");
-                info_act.setFont(font3);
-                int n=JOptionPane.showConfirmDialog(null,info_act,"提示",JOptionPane.YES_NO_OPTION);
-                if(n!=0)
+                Object[] startOptions ={ "开始", "取消" };
+                JPanel panel = new JPanel();
+                panel.setLayout(new GridLayout(2,2,4,4));
+                JLabel label1=new JLabel("备份文件名：");
+                JTextField textField1 = new JTextField(15);
+                JLabel label3=new JLabel("密码：");
+                JPasswordField textField3 = new JPasswordField(15);textField3.setEchoChar('*');
+                label1.setFont(font4);label3.setFont(font4);
+                textField1.setFont(font4);textField3.setFont(font4);
+                panel.add(label1);panel.add(textField1);
+                panel.add(label3);panel.add(textField3);
+                int startResult=JOptionPane.showOptionDialog(null, panel, "备份文件设置",
+                        JOptionPane.YES_NO_OPTION, JOptionPane.PLAIN_MESSAGE, null,
+                        startOptions,null);
+                if(startResult==1)
                     return;
-                if(select_loc_rmo.getSelectedIndex()==0){
-                    File file=new File(local_text+"\\log.txt");
-                    if(!file.exists()){
-                        try{file.createNewFile();}
-                        catch (IOException ex){ex.printStackTrace();}
-                    }
-                    try{
-                        FileWriter filewriter=new FileWriter(file,true);
-                        SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-                        filewriter.write(df.format(System.currentTimeMillis())+"\n");filewriter.flush();
-                        for(int i=0;i<model.getRowCount();i++){
-                            filewriter.write(""+model.getValueAt(i,0)+"\t"+model.getValueAt(i,1)+"\n");
-                            filewriter.flush();
-                        }
-                        String[] options = {"查看文件", "退出"};
-                        int result = JOptionPane.showOptionDialog(null, "备份成功！",
-                                "提示",
-                                JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE, null, options, options[0]);
-                        model.setRowCount(0);
-                        if(result==0){
-                            try{
-                                Runtime.getRuntime().exec("cmd /c start explorer "+ local_text);
-                                Runtime.getRuntime().exec("cmd /c explorer.exe /select,"+ local_text+"\\log.txt");
-                            }catch (Exception ex){
-                            }
-                        }
 
-                    }catch (Exception ex){
-                        ex.printStackTrace();
-                        JOptionPane.showMessageDialog(backup_Panel,"路径不存在，请检查路径！","提示",JOptionPane.WARNING_MESSAGE);
+                SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd_HH_mm_ss");
+                String tail=df.format(System.currentTimeMillis())+".tar";
+                String fileName=local_text+"\\"+textField1.getText()+"_"+tail;
+                File file=new File(fileName);
+                if(!file.exists()){
+                    try{file.createNewFile();}
+                    catch (IOException ex){ex.printStackTrace();}
+                }
+                try{
+//                    FileWriter filewriter=new FileWriter(file,true);
+//                    //SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+//                    filewriter.write(df.format(System.currentTimeMillis())+"\n");filewriter.flush();
+//                    for(int i=0;i<model.getRowCount();i++){
+//                        filewriter.write(""+model.getValueAt(i,0)+"\t"+model.getValueAt(i,1)+"\n");
+//                        filewriter.flush();
+//                    }
+                    ArrayList<String> pathList=new ArrayList<String>();
+                    for(int i=0;i<model.getRowCount();i++){
+                        pathList.add(model.getValueAt(i,1).toString());
                     }
-                }
-                else {
+                    TarArchive.tar(pathList,fileName);
+                    String compressFile=fileName+".huf";
+                    FileProcess.comPress(fileName,compressFile);
+                    {
+                        File file2=new File(fileName);
+                        if(file2.exists())
+                            file2.delete();
+                    }
 
+                    String[] options = {"查看文件", "退出"};
+                    int result = JOptionPane.showOptionDialog(null, "备份成功！",
+                            "提示",
+                            JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE, null, options, options[0]);
+                    model.setRowCount(0);
+                    if(result==0){
+                        try{
+                            //Runtime.getRuntime().exec("cmd /c start explorer "+ local_text);
+                            Runtime.getRuntime().exec("cmd /c explorer.exe /select,"+ compressFile);
+                        }catch (Exception ex){
+                        }
+                    }
+
+                }catch (Exception ex){
+                    ex.printStackTrace();
+                    JOptionPane.showMessageDialog(backup_Panel,"路径不存在，请检查路径！","提示",JOptionPane.WARNING_MESSAGE);
                 }
+
             }
         });
 
@@ -494,9 +518,11 @@ public class UI4 extends JPanel {
 
 
 
-        tabbedPane.addTab("立即备份",backup_Panel);
-        tabbedPane.addTab("自动备份",test_panel2);
-        tabbedPane.addTab("还原",test_panel3);
+        tabbedPane.addTab("备份",backup_Panel);
+        //tabbedPane.addTab("自动备份",test_panel2);
+        //tabbedPane.addTab("还原",test_panel3);
+        JPanel recoverPanel=new RecoverPanel();
+        tabbedPane.addTab("还原",recoverPanel);
         tabbedPane.setFont(font3);
 
         frame.pack();

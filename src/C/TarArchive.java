@@ -1,12 +1,14 @@
 package C;
 
 import java.io.*;
+import java.util.ArrayList;
 
 public class TarArchive {
     public static void main(String[] args) throws Exception {
-        String sourceFolder = "I:\\软件开发\\测试\\1";
-        String tarFilepath = "I:\\软件开发\\测试\\test1.tar";
-        String desFilepath = "I:\\软件开发\\测试\\解压\\1";
+        ArrayList<String> sourceFolder =new ArrayList<String>();
+        sourceFolder.add("I:\\数据挖掘\\data\\iris.csv");sourceFolder.add("I:\\软件开发\\测试文件");
+        String tarFilepath = "I:\\软件开发\\t4.tar";
+        String desFilepath = "I:\\软件开发\\测试\\解压";
 //        String sourceFolder = "C:\\works\\学科\\软件开发综合实验\\Test\\1.txt";
 //        String tarFilepath = "C:\\works\\学科\\软件开发综合实验\\Test\\2.tar";
 //        String desFilepath = "C:\\works\\学科\\软件开发综合实验\\Test\\3";
@@ -24,18 +26,23 @@ public class TarArchive {
      * @param tarFilePath the .tar file.
      * @throws Exception
      */
-    public static void tar(String sourceFolder, String tarFilePath) throws Exception {
+    public static void tar(ArrayList<String> sourceFolder, String tarFilePath) throws Exception {
         OutputStream out = new FileOutputStream(tarFilePath);
         BufferedOutputStream bos = new BufferedOutputStream(out);
         TarOutputStream tos = new TarOutputStream(bos);
-        File file = new File(sourceFolder);
-        String basePath = null;
-        if (file.isDirectory()) {
-            basePath = file.getPath();
-        } else {
+        for(String folder:sourceFolder){
+            File file = new File(folder);
+            String basePath = null;
+//            if (file.isDirectory()) {
+//                basePath = file.getParent();
+//            } else {
+//                basePath = file.getParent();
+//            }
             basePath = file.getParent();
+            tarFile(file, basePath, tos);
         }
-        tarFile(file, basePath, tos);
+//        byte[] eof = new byte[Header.BLOCKSIZE * 2];
+//        tos.write(eof);
         bos.close();
         out.close();
     }
@@ -100,7 +107,9 @@ public class TarArchive {
     public static void untarFile(File parentFile, String basePath, String descDir) {
         FileInputStream is;
         BufferedInputStream bis;
-        byte[] cache = new byte[512];
+
+        int bytesize = 512;
+        byte[] cache = new byte[bytesize];
 
         try {
             is = new FileInputStream(parentFile);
@@ -139,17 +148,17 @@ public class TarArchive {
                 int nRead = 0;
                 int sumRead = 0;
                 while (true) {
-                    cache = new byte[512];
-                    if (sumRead + 512 >= size) {
+                    cache = new byte[bytesize];
+                    if (sumRead + bytesize >= size) {
                         int a = tis.read(cache, 0, size - sumRead);
                         tos.write(cache, 0, a);
-                        tis.read(cache, 0, 512);
-                        tis.read(cache, 0, 512);
+                        tis.read(cache, 0, bytesize);
+                        tis.read(cache, 0, bytesize);
                         tos.flush();
                         tos.close();
                         continue finish;
                     }
-                    nRead = tis.read(cache, 0, 512);
+                    nRead = tis.read(cache, 0, bytesize);
                     sumRead += nRead;
                     if (nRead == -1) {
                         break finish;
