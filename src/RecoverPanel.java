@@ -40,9 +40,12 @@ public class RecoverPanel extends JPanel {
 
     void recoverFile(File file) throws IOException {
         String fileName=file.getName();
-        JOptionPane.showMessageDialog(null,"开始还原！","提示",JOptionPane.PLAIN_MESSAGE);
+
         tmpPath=recPath+"\\"+fileName.substring(0,fileName.length()-4);
-        FileProcess.unCompress(file.getAbsolutePath(),tmpPath);
+        boolean flag=FileProcessEncrypt.unCompress(file.getAbsolutePath(),tmpPath);
+        if(!flag)
+            return;
+
         String des=recPath+"\\"+fileName.substring(0,fileName.length()-8);
         try { TarArchive.untar(tmpPath,des);
         }
@@ -107,7 +110,7 @@ public class RecoverPanel extends JPanel {
                     JTextField textField = new JTextField(recPath, 40);
                     textField.setFont(font3);
                     panel.add(textField);
-                    int result = JOptionPane.showOptionDialog(null, panel, "本地备份设置",
+                    int result = JOptionPane.showOptionDialog(null, panel, "还原路径设置",
                             JOptionPane.YES_NO_OPTION, JOptionPane.PLAIN_MESSAGE, null,
                             options, null);
                     if (result != 0)

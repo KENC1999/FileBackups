@@ -265,7 +265,7 @@ public class UI4 extends JPanel {
                     int result=JOptionPane.showOptionDialog(null, panel, "登录网盘",
                             JOptionPane.YES_NO_OPTION, JOptionPane.PLAIN_MESSAGE, null,
                             options,null);
-                    if(result==1)
+                    if(result!=0)
                         return;
                     else{
                         if(textField1.getText().length()==0){
@@ -376,6 +376,7 @@ public class UI4 extends JPanel {
                 JTextField textField1 = new JTextField(15);
                 JLabel label3=new JLabel("密码：");
                 JPasswordField textField3 = new JPasswordField(15);textField3.setEchoChar('*');
+
                 label1.setFont(font4);label3.setFont(font4);
                 textField1.setFont(font4);textField3.setFont(font4);
                 panel.add(label1);panel.add(textField1);
@@ -386,8 +387,8 @@ public class UI4 extends JPanel {
                 if(startResult==1)
                     return;
 
-                System.out.println(ftpClient.isConnected());
-                System.out.println(ftpClient.getPassiveLocalIPAddress());
+                //System.out.println(ftpClient.isConnected());
+                //System.out.println(ftpClient.getPassiveLocalIPAddress());
 
                 String ftpPathName=null;
 
@@ -414,7 +415,9 @@ public class UI4 extends JPanel {
                     TarArchive.tar(pathList,fileName);
                     String compressFile=fileName+".huf";
                     ftpPathName=compressFile;
-                    FileProcess.comPress(fileName,compressFile);
+                    //FileProcess.comPress(fileName,compressFile);
+                    //System.out.println(textField3.getText());
+                    FileProcessEncrypt.comPress(fileName,compressFile,textField3.getText());
                     {
                         File file2=new File(fileName);
                         if(file2.exists())
