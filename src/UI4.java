@@ -11,16 +11,21 @@ import java.awt.dnd.DropTargetAdapter;
 import java.awt.dnd.DropTargetDropEvent;
 import java.awt.event.*;
 import java.io.*;
+import java.math.BigInteger;
 import java.net.ConnectException;
 import java.net.SocketException;
+import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
+import org.apache.commons.io.FileDeleteStrategy;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.net.ftp.FTPClient;
 import java.io.File;
 import java.io.IOException;
+import java.util.Map;
 
 import C.*;
 
@@ -62,7 +67,7 @@ public class UI4 extends JPanel {
     JComboBox<String> select_loc_rmo=new JComboBox<String>(backup_choice);
     JButton start_backup_button=new JButton("开始备份");
     JButton cancel_backup_button=new JButton("清空列表");
-    String local_text="I:\\软件开发";
+    String local_text="D:\\软件开发测试";
 
     String[] file_cols = {"名称","路径"};
     Object[][] tableValues = {};
@@ -208,7 +213,16 @@ public class UI4 extends JPanel {
                 filechooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
                 filechooser.showOpenDialog(filechooser);//打开文件选择窗
                 File file = filechooser.getSelectedFile();  	//获取选择的文件
-                model.addRow(new Object[]{file.getName(), file.getPath()});
+                boolean flag=true;
+                for(int i=0;i< model.getRowCount();i++){
+                    if(file.getName().equals(model.getValueAt(i,0))){
+                        JOptionPane.showMessageDialog(null,"文件名不能重复！","提示",JOptionPane.ERROR_MESSAGE);
+                        flag=false;
+                        break;
+                    }
+                }
+                if(flag)
+                    model.addRow(new Object[]{file.getName(), file.getPath()});
                 //textPath.setText(openFile.getPath());	//获取选择文件的路径
             }
         });
@@ -371,22 +385,33 @@ public class UI4 extends JPanel {
                 }
                 Object[] startOptions ={ "开始", "取消" };
                 JPanel panel = new JPanel();
-                panel.setLayout(new GridLayout(2,2,4,4));
+                panel.setLayout(new GridLayout(3,2,4,4));
                 JLabel label1=new JLabel("备份文件名：");
                 JTextField textField1 = new JTextField(15);
                 JLabel label3=new JLabel("密码：");
                 JPasswordField textField3 = new JPasswordField(15);textField3.setEchoChar('*');
+                JCheckBox checkFile=new JCheckBox("进行文件校验");
+                textField1.addKeyListener(new KeyAdapter() {
+                    public void keyTyped(KeyEvent e) {
+                        char c = e.getKeyChar();
+                        if (c=='\\'||c=='.'||c=='*') {
+                            e.consume();  // ignore event
+                        }
+                    }});
 
                 label1.setFont(font4);label3.setFont(font4);
                 textField1.setFont(font4);textField3.setFont(font4);
+                checkFile.setFont(font4);
+
                 panel.add(label1);panel.add(textField1);
                 panel.add(label3);panel.add(textField3);
+                panel.add(checkFile);
                 int startResult=JOptionPane.showOptionDialog(null, panel, "备份文件设置",
                         JOptionPane.YES_NO_OPTION, JOptionPane.PLAIN_MESSAGE, null,
                         startOptions,null);
                 if(startResult==1)
                     return;
-
+                //System.out.println(checkFile.isSelected());
                 //System.out.println(ftpClient.isConnected());
                 //System.out.println(ftpClient.getPassiveLocalIPAddress());
 
@@ -401,29 +426,76 @@ public class UI4 extends JPanel {
                     catch (IOException ex){ex.printStackTrace();}
                 }
                 try{
-//                    FileWriter filewriter=new FileWriter(file,true);
-//                    //SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-//                    filewriter.write(df.format(System.currentTimeMillis())+"\n");filewriter.flush();
-//                    for(int i=0;i<model.getRowCount();i++){
-//                        filewriter.write(""+model.getValueAt(i,0)+"\t"+model.getValueAt(i,1)+"\n");
-//                        filewriter.flush();
-//                    }
                     ArrayList<String> pathList=new ArrayList<String>();
                     for(int i=0;i<model.getRowCount();i++){
                         pathList.add(model.getValueAt(i,1).toString());
                     }
+                    Map<String,String> fileRelate= new HashMap<String,String>();//拷贝文件和原文件的映射
+                    if(checkFile.isSelected()){//如果要校验先拷贝到指定文件夹下
+                        String dstPath=local_text+"\\.MyTempFileBackup";
+                        File dst=new File(dstPath);
+                        if(!dst.exists())
+                            dst.mkdir();
+                        for(String filePath:pathList){//依次建立映射
+                            relateDir(dstPath.length(),filePath,dstPath+"\\"+filePath.substring(filePath.lastIndexOf('\\')+1),fileRelate);
+                        }
+//                        for(String key:fileRelate.keySet()) {//打印还原文件的hash
+//                            System.out.println(key + ":" + fileRelate.get(key));
+//                        }
+                    }
+
                     TarArchive.tar(pathList,fileName);
                     String compressFile=fileName+".huf";
                     ftpPathName=compressFile;
+                    FileProcessEncrypt.comPress(fileName,compressFile,textField3.getText());
                     //FileProcess.comPress(fileName,compressFile);
                     //System.out.println(textField3.getText());
-                    FileProcessEncrypt.comPress(fileName,compressFile,textField3.getText());
-                    {
-                        File file2=new File(fileName);
-                        if(file2.exists())
-                            file2.delete();
-                    }
 
+                    if(checkFile.isSelected()){//进行文件校验
+                        Map<String,String> postFileHash= new HashMap<String,String>();
+                        String recPath=local_text+"\\.MyTempFileBackup\\"+fileName.substring(fileName.lastIndexOf('\\'));
+                        recoverTemp(fileName,recPath);
+                        addFileHash2Map(recPath.length(),new File(recPath),postFileHash);//计算还原文件的hash
+                        for(String key:postFileHash.keySet()){//打印还原文件的hash
+                            System.out.println(key+":"+postFileHash.get(key));
+                        }
+                        JPanel vpanel = new JPanel();
+                        JTextArea vtext=new JTextArea();
+                        vtext.setFont(font3);
+                        vpanel.add(vtext);
+                        boolean vflag=true;
+                        String vinfo="";
+                        System.out.println("完成！");
+                        Thread.sleep(10000);//停10秒去改文件
+                        for(String key:fileRelate.keySet()){//计算原文件的hash
+                            String orgHash=getFileHash(fileRelate.get(key));
+                            if(postFileHash.get(key)==null){
+                                System.out.println(fileRelate.get(key)+"未备份成功！");
+                                vinfo+=fileRelate.get(key)+"未备份成功！\n";
+                                vflag=false;
+                                continue;
+                            }
+                            System.out.println(orgHash+"____"+postFileHash.get(key));
+                            if(!orgHash.equals(postFileHash.get(key))){//文件hash不一致
+                                System.out.println(fileRelate.get(key)+"发生改变！");
+                                vinfo+=fileRelate.get(key)+"发生改变！\n";
+                                vflag=false;
+                            }
+                        }
+                        if(vflag){
+                            System.out.println("校验完成！所有文件均一致！");
+                            vinfo+="校验完成！所有文件均一致\n";
+                        }
+                        vtext.setText(vinfo);
+                        JOptionPane.showMessageDialog(null, vpanel, "文件校验",JOptionPane.PLAIN_MESSAGE);
+
+
+                        //删除测试文件夹
+                        deleteDir(new File(local_text+"\\.MyTempFileBackup"));
+                    }
+                    File file2=new File(fileName);
+                    if(file2.exists())
+                        file2.delete();
 
                     String[] options = {"查看文件", "返回"};
                     int result = JOptionPane.showOptionDialog(null, "本地备份成功！",
@@ -513,9 +585,6 @@ public class UI4 extends JPanel {
                                     ioException.printStackTrace();
                                 }
                                 System.out.println("成功");
-                                //model.addRow(new Object[]{"35", "Boss"});
-                                //file_table.setModel(tableModel);
-
                             }
                         });
                         delete.addActionListener(new ActionListener() {
@@ -588,9 +657,18 @@ public class UI4 extends JPanel {
                         String path="";
                         String name="";
                         for(File file:list){
-                            path+=file.getAbsolutePath();
-                            name+=file.getName();
-                            model.addRow(new Object[]{name, path});
+                            path=file.getAbsolutePath();
+                            name=file.getName();
+                            boolean flag=true;
+                            for(int i=0;i< model.getRowCount();i++){
+                                if(name.equals(model.getValueAt(i,0))){
+                                    JOptionPane.showMessageDialog(null,"文件名不能重复！","提示",JOptionPane.ERROR_MESSAGE);
+                                    flag=false;
+                                    break;
+                                }
+                            }
+                            if(flag)
+                                model.addRow(new Object[]{name, path});
                         }
                         dtde.dropComplete(true);
                     }
@@ -602,6 +680,97 @@ public class UI4 extends JPanel {
                 }
             }
         });
+    }
+
+    public static void addFile2List(File file,ArrayList<String> list){//递归添加目录下的文件到list中
+        if(file.isFile()){
+            //System.out.println(file.getAbsolutePath());
+            String path=file.getAbsolutePath();
+            list.add(path);
+            return;
+        }
+        else{
+            File[] subFiles=file.listFiles();
+            for(File f:subFiles){
+                addFile2List(f,list);
+            }
+        }
+    }
+
+    public static void addFileHash2Map(int PreLen,File file,Map<String,String> map){//递归添加目录下的文件hash到map中
+        if(file.isFile()){
+            String path=file.getAbsolutePath();
+            map.put(path.substring(PreLen),getFileHash(path));
+            return;
+        }
+        else{
+            File[] subFiles=file.listFiles();
+            for(File f:subFiles){
+                addFileHash2Map(PreLen,f,map);
+            }
+        }
+    }
+
+    public static String getFileHash(String filePath){
+        try{
+            InputStream fis=new FileInputStream(filePath);
+            MessageDigest md5 = MessageDigest.getInstance("MD5");
+            byte buffer[] = new byte[1024];
+            int length=-1;
+            while ((length = fis.read(buffer, 0, 1024)) != -1) {
+                md5.update(buffer, 0, length);
+            }
+            fis.close();
+            //转换并返回包含16个元素字节数组,返回数值范围为-128到127
+            byte[] md5Bytes  = md5.digest();
+            BigInteger bigInt = new BigInteger(1, md5Bytes);//1代表绝对值
+            return bigInt.toString(16);//转换为16进制
+        }
+        catch (Exception e){
+            e.printStackTrace();
+            return "";
+        }
+    }
+
+    public static void relateDir(int preLen,String sourcePath, String dstPath,Map<String,String> relate){//递归建立映射关系
+        File file = new File(sourcePath);
+        if(file.isFile()){//一开始就是文件那就直接建立映射
+            relate.put(dstPath.substring(preLen+1),sourcePath);//把前缀去掉做键
+            return;
+        }
+        String[] filePath = file.list();
+        if (!(new File(dstPath)).exists()) {
+            (new File(dstPath)).mkdir();
+        }
+        for (int i = 0; i < filePath.length; i++) {
+            if ((new File(sourcePath + file.separator + filePath[i])).isDirectory()) {
+                relateDir(preLen,sourcePath  + file.separator  + filePath[i], dstPath  + file.separator + filePath[i],relate);
+            }
+            if (new File(sourcePath  + file.separator + filePath[i]).isFile()) {
+                String dst=dstPath + file.separator + filePath[i];
+                relate.put(dst.substring(preLen+1),sourcePath + file.separator + filePath[i]);//把前缀去掉做键
+            }
+        }
+    }
+
+
+    void recoverTemp(String org,String dst) {//临时恢复做数据检验
+        try { TarArchive.untar(org,dst); }
+        catch (IOException ex) { ex.printStackTrace(); }
+    }
+
+    static boolean deleteDir(File dir) {//递归删除目录
+        if (dir.isDirectory()) {
+            String[] children = dir.list();
+            for (int i=0; i<children.length; i++) {
+                boolean success = deleteDir(new File(dir, children[i]));
+                if (!success) {
+                    return false;
+                }
+            }
+        }
+        // 目录此时为空，可以删除
+        return dir.delete();
     }
 
 }
